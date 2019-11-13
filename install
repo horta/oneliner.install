@@ -132,7 +132,7 @@ silent_run ctest --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
-$DO_CMD make install
+$DO_CMD cmake --build . --config Release --target install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
