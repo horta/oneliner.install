@@ -12,8 +12,6 @@ fi
 
 if [ -z ${DO_CMD+x} ]; then
     DO_CMD=""
-else
-    DO_CMD="$DO_CMD"
 fi
 
 url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest/download
