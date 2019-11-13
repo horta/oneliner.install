@@ -82,7 +82,7 @@ function silent_run
 
 function run_ldconfig
 {
-    if type "$DO_CMD ldconfig"; then
+    if $DO_CMD type ldconfig; then
         $DO_CMD ldconfig
     fi
 }
