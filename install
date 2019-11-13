@@ -10,10 +10,10 @@ if [ -z ${GITHUB_PROJECT+x} ]; then
     exit 1
 fi
 
-if [ -z ${USE_SUDO+x} ]; then
-    install_cmd_prefix=""
+if [ -z ${DO_CMD+x} ]; then
+    DO_CMD=""
 else
-    install_cmd_prefix="sudo"
+    DO_CMD="$DO_CMD"
 fi
 
 url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest/download
@@ -134,11 +134,11 @@ silent_run ctest --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
-silent_run $install_cmd_prefix make install
+$DO_CMD make install
 [ $? == 0 ] && echo "done." || failed
 
-echo "[7/7] Finalizing..."
-silent_run $install_cmd_prefix run_ldconfig
+echo -n "[7/7] Finalizing... "
+silent_run $DO_CMD run_ldconfig
 [ $? == 0 ] && echo "done." || failed
 
 succeeded
