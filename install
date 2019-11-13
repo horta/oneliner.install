@@ -82,8 +82,8 @@ function silent_run
 
 function run_ldconfig
 {
-    if type "ldconfig"; then
-        ldconfig
+    if type "$DO_CMD ldconfig"; then
+        $DO_CMD ldconfig
     fi
 }
 
@@ -138,7 +138,7 @@ $DO_CMD make install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
-silent_run $DO_CMD run_ldconfig
+silent_run run_ldconfig
 [ $? == 0 ] && echo "done." || failed
 
 succeeded
