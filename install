@@ -14,16 +14,21 @@ if [ -z ${DO_CMD+x} ]; then
     DO_CMD=""
 fi
 
-url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest/download
-version=$(curl -s $url 2>&1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
-orig_dir=$(pwd)
-tarfile=$GITHUB_PROJECT-$version.tar.gz
-tarurl=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$version.tar.gz
-
 function error
 {
     >&2 echo "Error: $1"
 }
+
+url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest/download
+http_code=$(curl -s -o /dev/null -w "%{http_code}" $url)
+if [ "$http_code" = "404" ]; then
+    error "Page <$url> not found, 404."
+    exit 1
+fi
+version=$(curl -s $url 2>&1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
+orig_dir=$(pwd)
+tarfile=$GITHUB_PROJECT-$version.tar.gz
+tarurl=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$version.tar.gz
 
 function set_tempdir
 {
@@ -89,7 +94,7 @@ function failed
 {
     exec 3>&-
     echo "FAILED."
-    echo "[_/6] Log output:"
+    echo "[_/7] Log output:"
     echo ""
     cat "$logfile"
     echo ""
