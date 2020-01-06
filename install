@@ -18,6 +18,12 @@ if [ -z ${DO_CMD+x} ]; then
     fi
 fi
 
+if [ -z ${INSTALL_PREFIX+x} ]; then
+    INSTALL_PREFIX_OPT=""
+else
+    INSTALL_PREFIX_OPT="-DCMAKE_INSTALL_PREFIX=\"$INSTALL_PREFIX\""
+fi
+
 function error
 {
     >&2 echo "Error: $1"
@@ -129,7 +135,7 @@ silent_run cd build
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[3/7] Configuring... "
-silent_run cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On ..
+silent_run cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On $INSTALL_PREFIX_OPT ..
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[4/7] Compiling... "
