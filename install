@@ -11,7 +11,11 @@ if [ -z ${GITHUB_PROJECT+x} ]; then
 fi
 
 if [ -z ${DO_CMD+x} ]; then
-    DO_CMD=""
+    if test -e /usr/bin/sudo; then
+        DO_CMD="sudo"
+    else
+        DO_CMD=""
+    fi
 fi
 
 function error
