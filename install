@@ -29,14 +29,14 @@ function error
     >&2 echo "Error: $1"
 }
 
-url=https://api.github.com/repos/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
-http_code=$(curl -s -o /dev/null -w "%{http_code}" $url)
+url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
+http_code=$(curl -L -s -o /dev/null -w "%{http_code}" $url)
 if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
     error "Page error for <$url>, $http_code."
-    curl -i $url
+    curl -L -i $url
     exit 1
 fi
-version=$(curl -s $url 2>&1 | grep -oE \"tag_name\":\ \"\[^\"\]\*\" | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
+version=$(curl -L -s $url 2>&1 | grep -oE releases\/tag\/\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
 orig_dir=$(pwd)
 tarfile=$GITHUB_PROJECT-$version.tar.gz
 tarurl=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$version.tar.gz
