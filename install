@@ -31,8 +31,8 @@ function error
 
 url=https://api.github.com/repos/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
 http_code=$(curl -s -o /dev/null -w "%{http_code}" $url)
-if [ "$http_code" = "404" ]; then
-    error "Page <$url> not found, 404."
+if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
+    error "Page error for <$url>, $http_code."
     exit 1
 fi
 version=$(curl -s $url 2>&1 | grep -oE \"tag_name\":\ \"\[^\"\]\*\" | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
