@@ -1,21 +1,53 @@
 #!/bin/bash
 
-if [ -z ${GITHUB_USER+x} ]; then
-    >&2 echo "GITHUB_USER is not set."
-    exit 1
-fi
+function error
+{
+    >&2 echo "Error: $1"
+}
 
-if [ -z ${GITHUB_PROJECT+x} ]; then
-    >&2 echo "GITHUB_PROJECT is not set."
+function abort
+{
+    error "$1"
     exit 1
-fi
+}
 
-if [ -z ${DO_CMD+x} ]; then
-    if test -e /usr/bin/sudo; then
-        DO_CMD="sudo"
-    else
-        DO_CMD=""
+if [ "$#" == "0" ]; then
+
+    # This method of using this script has been deprecated.
+
+    if [ -z ${GITHUB_USER+x} ]; then
+        abort "GITHUB_USER is not set."
     fi
+
+    if [ -z ${GITHUB_PROJECT+x} ]; then
+        abort "GITHUB_PROJECT is not set."
+    fi
+
+    if [ -z ${DO_CMD+x} ]; then
+        if test -e /usr/bin/sudo; then
+            DO_CMD="sudo"
+        else
+            DO_CMD=""
+        fi
+    fi
+
+else
+
+    if [ "$#" != "1" ]; then
+        abort "you must pass exactly one parameter"
+    fi
+
+    IFS=/ command eval 'read -ra GITHUB_PATH <<< "$1"'
+
+    if [[ "${#GITHUB_PATH[@]}" != 2 ]]; then
+        abort "wrong format for github path"
+    fi
+
+    GITHUB_USER="${GITHUB_PATH[0]}"
+    GITHUB_PROJECT="${GITHUB_PATH[1]}"
+
+    # backward compatibility variable
+    DO_CMD=""
 fi
 
 if [ -z ${INSTALL_PREFIX+x} ]; then
@@ -24,16 +56,12 @@ else
     INSTALL_PREFIX_OPT="-DCMAKE_INSTALL_PREFIX=\"$INSTALL_PREFIX\""
 fi
 
-function error
-{
-    >&2 echo "Error: $1"
-}
-
 url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
 http_code=$(curl -L -s -o /dev/null -w "%{http_code}" $url)
 if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
-    error "Page error for <$url>, $http_code."
-    curl -L -i $url
+    error "page error for <$url>, $http_code"
+    >&2 echo
+    >&2 echo "$(curl -L -i $url 2> /dev/null)"
     exit 1
 fi
 version=$(curl -L -s $url 2>&1 | grep -oE releases\/tag\/\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
@@ -52,8 +80,7 @@ function set_tempdir
         return 0
     fi
 
-    error "Could not create a temporary directory."
-    exit 1
+    abort "could not create a temporary directory"
 }
 set_tempdir $GITHUB_PROJECT
 
@@ -68,8 +95,7 @@ function set_logfile
         return 0
     fi
 
-    error "Could not create a log file."
-    exit 1
+    abort "could not create a log file"
 }
 set_logfile $GITHUB_PROJECT
 
@@ -83,12 +109,6 @@ function cleanup
 }
 trap cleanup EXIT
 
-function ctrl_c()
-{
-    echo "Log file path: $logfile"
-}
-trap ctrl_c INT
-
 function silent_run
 {
     eval "$@" 2>&3 1>&3
@@ -96,8 +116,8 @@ function silent_run
 
 function run_ldconfig
 {
-    if $DO_CMD type ldconfig; then
-        $DO_CMD ldconfig
+    if type ldconfig; then
+        ldconfig
     fi
 }
 
@@ -105,13 +125,15 @@ function failed
 {
     exec 3>&-
     echo "FAILED."
-    echo "[_/7] Log output:"
-    echo ""
+    echo
+    echo "---------------------------------------- log begin ----------------------------------------"
     cat "$logfile"
-    echo ""
-    echo "Log file path: $logfile"
+    echo "----------------------------------------  log end  ----------------------------------------"
+    echo
+    echo "LOG: $logfile"
     exit 1
 }
+trap failed INT
 
 function succeeded
 {
