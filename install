@@ -2,7 +2,7 @@
 
 function error
 {
-    >&2 echo "Error: $1"
+    echo >&2 "Error: $1"
 }
 
 function abort
@@ -39,7 +39,7 @@ else
 
     IFS=/ command eval 'read -ra GITHUB_PATH <<< "$1"'
 
-    if [[ "${#GITHUB_PATH[@]}" != 2 ]]; then
+    if [[ ${#GITHUB_PATH[@]} != 2 ]]; then
         abort "wrong format for github path"
     fi
 
@@ -60,8 +60,8 @@ url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
 http_code=$(curl -L -s -o /dev/null -w "%{http_code}" $url)
 if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
     error "page error for <$url>, $http_code"
-    >&2 echo
-    >&2 echo "$(curl -L -i $url 2> /dev/null)"
+    echo >&2
+    echo >&2 "$(curl -L -i $url 2>/dev/null)"
     exit 1
 fi
 version=$(curl -L -s $url 2>&1 | grep -oE releases\/tag\/\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
@@ -99,7 +99,7 @@ function set_logfile
 }
 set_logfile $GITHUB_PROJECT
 
-exec 3> "$logfile"
+exec 3>"$logfile"
 
 function cleanup
 {
@@ -124,9 +124,9 @@ function run_ldconfig
 function is_unix
 {
     case "$(uname -s)" in
-        Linux*)     return 0;;
-        Darwin*)    return 0;;
-        *)          return 1
+    Linux*) return 0 ;;
+    Darwin*) return 0 ;;
+    *) return 1 ;;
     esac
 }
 if is_unix; then
@@ -158,6 +158,34 @@ function succeeded
     rm -rf "$logfile" >/dev/null 2>&1 || true
 }
 
+function cmake_cmd
+{
+    local cmd=""
+    if silent_run type cmake; then
+        cmd="cmake"
+    elif silent_run type cmake.exe; then
+        cmd="cmake.exe"
+    else
+        abort "could not find cmake (please, install it: https://cmake.org/download/)"
+    fi
+    echo $cmd
+}
+CMAKE=$(cmake_cmd)
+
+function ctest_cmd
+{
+    local cmd=""
+    if silent_run type ctest; then
+        cmd="ctest"
+    elif silent_run type ctest.exe; then
+        cmd="ctest.exe"
+    else
+        abort "could not find ctest"
+    fi
+    echo $cmd
+}
+CTEST=$(ctest_cmd)
+
 echo "[0/7] Library($GITHUB_PROJECT==$version)"
 cd $tmpdir
 
@@ -175,19 +203,19 @@ silent_run cd build
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[3/7] Configuring... "
-silent_run cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On $GENERATOR $INSTALL_PREFIX_OPT ..
+silent_run $CMAKE -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On $GENERATOR $INSTALL_PREFIX_OPT ..
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[4/7] Compiling... "
-silent_run cmake --build . --config Release
+silent_run $CMAKE --build . --config Release
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[5/7] Testing... "
-silent_run ctest --output-on-failure -C Release
+silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
-$DO_CMD cmake --build . --config Release --target install
+$DO_CMD $CMAKE --build . --config Release --target install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
