@@ -212,7 +212,11 @@ silent_run $CMAKE --build . --config Release
 
 echo -n "[5/7] Testing... "
 # Windows hacky
+echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+ls
+find test
 find test -name "*.exe" -exec "chmod" +x {} \;
+echo "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
