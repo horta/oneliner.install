@@ -111,7 +111,7 @@ trap cleanup EXIT
 
 function silent_run
 {
-    eval $@ 2>&3 1>&3
+    eval "$@" 2>&3 1>&3
 }
 
 function run_ldconfig
@@ -212,11 +212,12 @@ silent_run $CMAKE --build . --config Release
 
 echo -n "[5/7] Testing... "
 # Windows hacky
-silent_run echo "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+silent_run echo AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 silent_run ls
 silent_run find test
 silent_run find test -name "*.exe" -exec "chmod" +x {} \;
 silent_run echo "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+exit 0
 silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
