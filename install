@@ -56,7 +56,6 @@ else
     INSTALL_PREFIX_OPT="-DCMAKE_INSTALL_PREFIX=\"$INSTALL_PREFIX\""
 fi
 
-exit 0
 url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
 http_code=$(curl -L -s -o /dev/null -w "%{http_code}" $url)
 if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
@@ -213,7 +212,6 @@ silent_run $CMAKE --build . --config Release
 
 echo -n "[5/7] Testing... "
 # Windows hacky
-silent_run echo "QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQq"
 silent_run find test -name "*.exe" -exec chmod +x {} \;
 silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
