@@ -111,13 +111,33 @@ trap cleanup EXIT
 
 function silent_run
 {
-    eval "$@" 2>&3 1>&3
+    $@ 2>&3 1>&3
 }
 
 function run_ldconfig
 {
     if type ldconfig; then
         ldconfig
+    fi
+}
+
+function is_wsl()
+{
+    if grep -qEi "(Microsoft|WSL)" /proc/version &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+is_wsl && abort "WSL is not supported. Please, open a Git Bash terminal " \
+    "(https://gitforwindows.org)"
+
+function is_mingw32()
+{
+    if grep -qEi "MINGW32" /proc/version &>/dev/null; then
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -211,8 +231,6 @@ silent_run $CMAKE --build . --config Release
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[5/7] Testing... "
-# Windows hacky
-silent_run find test -name "*.exe" -exec "chmod" +x {} \;
 silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
