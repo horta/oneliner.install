@@ -129,8 +129,10 @@ function is_wsl()
         return 1
     fi
 }
-is_wsl && abort "WSL is not supported. Please, open a Git Bash terminal " \
-    "(https://gitforwindows.org)"
+if is_wsl; then
+    url=https://gitforwindows.org
+    abort "WSL is not supported. Please, open a Git Bash terminal ($url)"
+fi
 
 function is_mingw32()
 {
