@@ -142,6 +142,11 @@ function is_mingw32()
         return 1
     fi
 }
+if is_mingw32; then
+    # to avoid warnings about incremental builds inside a temp directory
+    # source: https://github.com/microsoft/LightGBM/pull/3162/files
+    export TMPDIR="$USERPROFILE"
+fi
 
 function is_unix
 {
