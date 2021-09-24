@@ -9,7 +9,7 @@ if [[ $DEBUG != "0" ]]; then
     C_FLAGS_DEBUG=${C_FLAGS_DEBUG:--g -O0}
     export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
     echo "Debug mode activated!, with LD_PRELOAD: $LD_PRELOAD"
-    echo "Version: 1"
+    echo "Version: 2"
 fi
 
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
