@@ -9,7 +9,7 @@ if [[ $DEBUG != "0" ]]; then
     C_FLAGS_DEBUG=${C_FLAGS_DEBUG:--g -O0}
     export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
     echo "Debug mode activated!, with LD_PRELOAD: $LD_PRELOAD"
-    echo "Version: 2"
+    echo "Version: 3"
 fi
 
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
@@ -101,28 +101,8 @@ if is_mingw32; then
     export TMPDIR="$USERPROFILE"
 fi
 
-function set_tempdir
-{
-    prefix=$1
-    # if tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t $prefix); then
-    if tmpdir=$(mktemp -d || mktemp -d -t $prefix); then
-        return 0
-    fi
-
-    abort "could not create a temporary directory"
-}
-set_tempdir $GITHUB_PROJECT
-
-function set_logfile
-{
-    prefix=$1
-    if logfile=$(mktemp -d || mktemp -d -t $prefix); then
-        return 0
-    fi
-
-    abort "could not create a log file"
-}
-set_logfile $GITHUB_PROJECT
+tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t $GITHUB_PROJECT)
+logfile=$(mktemp -d 2>/dev/null || mktemp -d -t $GITHUB_PROJECT)
 
 exec 3>"$logfile"
 
