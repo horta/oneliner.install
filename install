@@ -69,6 +69,20 @@ orig_dir=$(pwd)
 tarfile=$GITHUB_PROJECT-$version.tar.gz
 tarurl=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$version.tar.gz
 
+function is_mingw32()
+{
+    if grep -qEi "MINGW32" /proc/version &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+if is_mingw32; then
+    # to avoid warnings about incremental builds inside a temp directory
+    # source: https://github.com/microsoft/LightGBM/pull/3162/files
+    export TMPDIR="$USERPROFILE"
+fi
+
 function set_tempdir
 {
     fix=$1
@@ -132,20 +146,6 @@ function is_wsl()
 if is_wsl; then
     url=https://gitforwindows.org
     abort "WSL is not supported. Please, open a Git Bash terminal ($url)"
-fi
-
-function is_mingw32()
-{
-    if grep -qEi "MINGW32" /proc/version &>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-if is_mingw32; then
-    # to avoid warnings about incremental builds inside a temp directory
-    # source: https://github.com/microsoft/LightGBM/pull/3162/files
-    export TMPDIR="$USERPROFILE"
 fi
 
 function is_unix
