@@ -7,6 +7,7 @@ if [[ $DEBUG != "0" ]]; then
     CMAKE_C_FLAGS=${CMAKE_C_FLAGS:--fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope -fsanitize=leak}
     LINKER_FLAGS=${LINKER_FLAGS:--fsanitize=address -fsanitize=undefined}
     C_FLAGS_DEBUG=${C_FLAGS_DEBUG:--g -O0}
+    echo "Debug mode activated!"
 fi
 
 CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
