@@ -102,12 +102,8 @@ fi
 
 function set_tempdir
 {
-    fix=$1
-    if tmpdir=$(mktemp -d --suffix=$fix 2>/dev/null); then
-        return 0
-    fi
-
-    if tmpdir=$(mktemp -d -t $fix); then
+    prefix=$1
+    if tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t $prefix); then
         return 0
     fi
 
@@ -117,12 +113,8 @@ set_tempdir $GITHUB_PROJECT
 
 function set_logfile
 {
-    fix=$1
-    if logfile=$(mktemp --suffix=$fix.log 2>/dev/null); then
-        return 0
-    fi
-
-    if logfile=$(mktemp -t $fix.log); then
+    prefix=$1
+    if logfile=$(mktemp -d 2>/dev/null || mktemp -d -t $prefix); then
         return 0
     fi
 
