@@ -16,12 +16,6 @@ CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-}
 LINKER_FLAGS=${LINKER_FLAGS:-}
 C_FLAGS_DEBUG=${C_FLAGS_DEBUG:-}
 
-echo "CMAKE_BUILD_TYPE: $CMAKE_BUILD_TYPE"
-echo "BUILD_SHARED_LIBS: $BUILD_SHARED_LIBS"
-echo "CMAKE_C_FLAGS: $CMAKE_C_FLAGS"
-echo "LINKER_FLAGS: $LINKER_FLAGS"
-echo "C_FLAGS_DEBUG: $C_FLAGS_DEBUG"
-
 function error
 {
     echo >&2 "Error: $1"
@@ -145,11 +139,6 @@ function cleanup
 }
 trap cleanup EXIT
 
-function silent_run
-{
-    $@ 2>&3 1>&3
-}
-
 function run_ldconfig
 {
     if type ldconfig; then
@@ -210,9 +199,9 @@ function succeeded
 function cmake_cmd
 {
     local cmd=""
-    if silent_run type cmake; then
+    if type 2>&3 1>&3 cmake; then
         cmd="cmake"
-    elif silent_run type cmake.exe; then
+    elif type 2>&3 1>&3 cmake.exe; then
         cmd="cmake.exe"
     else
         abort "could not find cmake (please, install it: https://cmake.org/download/)"
@@ -224,9 +213,9 @@ CMAKE=$(cmake_cmd)
 function ctest_cmd
 {
     local cmd=""
-    if silent_run type ctest; then
+    if type 2>&3 1>&3 ctest; then
         cmd="ctest"
-    elif silent_run type ctest.exe; then
+    elif type 2>&3 1>&3 ctest.exe; then
         cmd="ctest.exe"
     else
         abort "could not find ctest"
@@ -239,20 +228,20 @@ echo "[0/7] Library($GITHUB_PROJECT==$version)"
 cd $tmpdir
 
 echo -n "[1/7] Downloading... "
-silent_run curl -o $tarfile -L $tarurl
+curl 2>&3 1>&3 -o $tarfile -L $tarurl
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[2/7] Extracting... "
 [ -e $tarfile ] || failed
-silent_run tar xzf $tarfile || failed
+tar 2>&3 1>&3 xzf $tarfile || failed
 [ -e ${tarfile%.tar.gz} ] || failed
-silent_run cd ${tarfile%.tar.gz} || failed
-silent_run mkdir build || failed
-silent_run cd build
+cd 2>&3 1>&3 ${tarfile%.tar.gz} || failed
+mkdir 2>&3 1>&3 build || failed
+cd 2>&3 1>&3 build
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[3/7] Configuring... "
-silent_run $CMAKE -DCMAKE_BUILD_TYPE:STRING=$CMAKE_BUILD_TYPE \
+$CMAKE 2>&3 1>&3 -DCMAKE_BUILD_TYPE:STRING=$CMAKE_BUILD_TYPE \
     -DBUILD_SHARED_LIBS:STRING=$BUILD_SHARED_LIBS \
     -DCMAKE_C_FLAGS:STRING="$CMAKE_C_FLAGS" \
     -DCMAKE_SHARED_LINKER_FLAGS_INIT:STRING="$LINKER_FLAGS" \
@@ -261,11 +250,11 @@ silent_run $CMAKE -DCMAKE_BUILD_TYPE:STRING=$CMAKE_BUILD_TYPE \
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[4/7] Compiling... "
-silent_run $CMAKE --build . --config $CMAKE_BUILD_TYPE
+$CMAKE 2>&3 1>&3 --build . --config $CMAKE_BUILD_TYPE
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[5/7] Testing... "
-silent_run $CTEST --output-on-failure -C $CMAKE_BUILD_TYPE
+$CTEST 2>&3 1>&3 --output-on-failure -C $CMAKE_BUILD_TYPE
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
@@ -273,7 +262,7 @@ $DO_CMD $CMAKE --build . --config $CMAKE_BUILD_TYPE --target install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
-silent_run run_ldconfig
+run_ldconfig 2>&3 1>&3
 [ $? == 0 ] && echo "done." || failed
 
 succeeded
