@@ -1,5 +1,20 @@
 #!/bin/bash
 
+DEBUG=${DEBUG:-0}
+
+if [[ $DEBUG != "0" ]]; then
+    CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Debug}
+    CMAKE_C_FLAGS=${CMAKE_C_FLAGS:--fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope -fsanitize=leak}
+    LINKER_FLAGS=${LINKER_FLAGS:--fsanitize=address -fsanitize=undefined}
+    C_FLAGS_DEBUG=${C_FLAGS_DEBUG:--g -O0}
+fi
+
+CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
+BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS:-On}
+CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-}
+LINKER_FLAGS=${LINKER_FLAGS:-}
+C_FLAGS_DEBUG=${C_FLAGS_DEBUG:-}
+
 function error
 {
     echo >&2 "Error: $1"
@@ -230,19 +245,24 @@ silent_run cd build
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[3/7] Configuring... "
-silent_run $CMAKE -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On $GENERATOR $INSTALL_PREFIX_OPT ..
+silent_run $CMAKE -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE \
+    -DBUILD_SHARED_LIBS=$BUILD_SHARED_LIBS \
+    -DCMAKE_C_FLAGS="$CMAKE_C_FLAGS" \
+    -DCMAKE_SHARED_LINKER_FLAGS_INIT="$LINKER_FLAGS" \
+    -DCMAKE_EXE_LINKER_FLAGS_INIT="$LINKER_FLAGS" \
+    -DCMAKE_C_FLAGS_DEBUG="$C_FLAGS_DEBUG" $GENERATOR $INSTALL_PREFIX_OPT ..
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[4/7] Compiling... "
-silent_run $CMAKE --build . --config Release
+silent_run $CMAKE --build . --config $CMAKE_BUILD_TYPE
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[5/7] Testing... "
-silent_run $CTEST --output-on-failure -C Release
+silent_run $CTEST --output-on-failure -C $CMAKE_BUILD_TYPE
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
-$DO_CMD $CMAKE --build . --config Release --target install
+$DO_CMD $CMAKE --build . --config $CMAKE_BUILD_TYPE --target install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
