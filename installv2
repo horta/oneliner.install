@@ -13,7 +13,6 @@ function is_unix
 
 # Environment variable setup --------------------------------------------------
 BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS:-On}
-CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX:-}
 DEBUG=${DEBUG:-0}
 
 DEFAULT_DEBUG_CMAKE_C_FLAGS="-fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope"
@@ -43,20 +42,19 @@ LINKER_FLAGS=${LINKER_FLAGS:-$DEFAULT_NDEBUG_LINKER_FLAGS}
 if [ -z ${CMAKE_INSTALL_PREFIX+x} ]; then
     INSTALL_PREFIX_ARG=
 else
-    INSTALL_PREFIX_ARG="-DCMAKE_INSTALL_PREFIX:STRING=\"$CMAKE_INSTALL_PREFIX\""
-fi
-
-if is_unix; then
-    CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-}
-else
-    ARCH=${ARGH:-x64}
-    CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-$ARCH}
+    INSTALL_PREFIX_ARG="-DCMAKE_INSTALL_PREFIX:PATH=\"$CMAKE_INSTALL_PREFIX\""
 fi
 
 if [ -z ${CMAKE_GENERATOR_PLATFORM+x} ]; then
     GENERATOR_PLATFORM_ARG=
 else
-    GENERATOR_PLATFORM_ARG="-DCMAKE_GENERATOR_PLATFORM:STRING=$ARCH"
+    if is_unix; then
+        CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-}
+    else
+        ARCH=${ARGH:-x64}
+        CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-$ARCH}
+    fi
+    GENERATOR_PLATFORM_ARG="-DCMAKE_GENERATOR_PLATFORM:STRING=$CMAKE_GENERATOR_PLATFORM"
 fi
 # -----------------------------------------------------------------------------
 
