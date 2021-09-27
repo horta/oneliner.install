@@ -202,12 +202,17 @@ HEREDOC
 
 WORKDIR=$(mktemp_dir $GITHUB_PROJECT)
 LOGFILE=$WORKDIR/oneliner.log
+FAILFILE=$WORKDIR/failfile
 exec 3>"$LOGFILE"
 
 function cleanup
 {
     exec 3>&-
-    rm -rf "$WORKDIR" >/dev/null 2>&1 || true
+    if [ -e "$FAILFILE" ]; then
+        rm -f "$FAILFILE" >/dev/null 2>&1 || true
+    else
+        rm -rf "$WORKDIR" >/dev/null 2>&1 || true
+    fi
     cd "$ORIG_DIR"
 }
 trap cleanup EXIT
@@ -229,6 +234,7 @@ function failed
     echo "----------------------------------------  log end  ----------------------------------------"
     echo
     echo "LOG: $LOGFILE"
+    touch "$FAILFILE"
     exit 1
 }
 trap failed INT
