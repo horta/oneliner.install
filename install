@@ -1,23 +1,5 @@
 #!/bin/bash
 
-DEBUG=${DEBUG:-0}
-
-if [[ $DEBUG != "0" ]]; then
-    CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Debug}
-    CMAKE_C_FLAGS=${CMAKE_C_FLAGS:--fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope}
-    LINKER_FLAGS=${LINKER_FLAGS:--fsanitize=address -fsanitize=undefined}
-    C_FLAGS_DEBUG=${C_FLAGS_DEBUG:--g -O0}
-    export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
-    echo "Debug mode activated!, with LD_PRELOAD: $LD_PRELOAD"
-    echo "Version: 4"
-fi
-
-CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
-BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS:-On}
-CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-}
-LINKER_FLAGS=${LINKER_FLAGS:-}
-C_FLAGS_DEBUG=${C_FLAGS_DEBUG:-}
-
 function error
 {
     echo >&2 "Error: $1"
@@ -87,22 +69,35 @@ orig_dir=$(pwd)
 tarfile=$GITHUB_PROJECT-$version.tar.gz
 tarurl=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$version.tar.gz
 
-function is_mingw32()
+function set_tempdir
 {
-    if grep -qEi "MINGW32" /proc/version &>/dev/null; then
+    fix=$1
+    if tmpdir=$(mktemp -d --suffix=$fix 2>/dev/null); then
         return 0
-    else
-        return 1
     fi
-}
-if is_mingw32; then
-    # to avoid warnings about incremental builds inside a temp directory
-    # source: https://github.com/microsoft/LightGBM/pull/3162/files
-    export TMPDIR="$USERPROFILE"
-fi
 
-tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t $GITHUB_PROJECT)
-logfile=$(mktemp 2>/dev/null || mktemp -t $GITHUB_PROJECT)
+    if tmpdir=$(mktemp -d -t $fix); then
+        return 0
+    fi
+
+    abort "could not create a temporary directory"
+}
+set_tempdir $GITHUB_PROJECT
+
+function set_logfile
+{
+    fix=$1
+    if logfile=$(mktemp --suffix=$fix.log 2>/dev/null); then
+        return 0
+    fi
+
+    if logfile=$(mktemp -t $fix.log); then
+        return 0
+    fi
+
+    abort "could not create a log file"
+}
+set_logfile $GITHUB_PROJECT
 
 exec 3>"$logfile"
 
@@ -114,25 +109,17 @@ function cleanup
 }
 trap cleanup EXIT
 
+function silent_run
+{
+    eval "$@" 2>&3 1>&3
+}
+
 function run_ldconfig
 {
     if type ldconfig; then
         ldconfig
     fi
 }
-
-function is_wsl()
-{
-    if grep -qEi "(Microsoft|WSL)" /proc/version &>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
-}
-if is_wsl; then
-    url=https://gitforwindows.org
-    abort "WSL is not supported. Please, open a Git Bash terminal ($url)"
-fi
 
 function is_unix
 {
@@ -174,9 +161,9 @@ function succeeded
 function cmake_cmd
 {
     local cmd=""
-    if type 2>&3 1>&3 cmake; then
+    if silent_run type cmake; then
         cmd="cmake"
-    elif type 2>&3 1>&3 cmake.exe; then
+    elif silent_run type cmake.exe; then
         cmd="cmake.exe"
     else
         abort "could not find cmake (please, install it: https://cmake.org/download/)"
@@ -188,9 +175,9 @@ CMAKE=$(cmake_cmd)
 function ctest_cmd
 {
     local cmd=""
-    if type 2>&3 1>&3 ctest; then
+    if silent_run type ctest; then
         cmd="ctest"
-    elif type 2>&3 1>&3 ctest.exe; then
+    elif silent_run type ctest.exe; then
         cmd="ctest.exe"
     else
         abort "could not find ctest"
@@ -203,41 +190,36 @@ echo "[0/7] Library($GITHUB_PROJECT==$version)"
 cd $tmpdir
 
 echo -n "[1/7] Downloading... "
-curl 2>&3 1>&3 -o $tarfile -L $tarurl
+silent_run curl -o $tarfile -L $tarurl
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[2/7] Extracting... "
 [ -e $tarfile ] || failed
-tar 2>&3 1>&3 xzf $tarfile || failed
+silent_run tar xzf $tarfile || failed
 [ -e ${tarfile%.tar.gz} ] || failed
-cd 2>&3 1>&3 ${tarfile%.tar.gz} || failed
-mkdir 2>&3 1>&3 build || failed
-cd 2>&3 1>&3 build
+silent_run cd ${tarfile%.tar.gz} || failed
+silent_run mkdir build || failed
+silent_run cd build
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[3/7] Configuring... "
-$CMAKE 2>&3 1>&3 -DCMAKE_BUILD_TYPE:STRING=$CMAKE_BUILD_TYPE \
-    -DBUILD_SHARED_LIBS:STRING=$BUILD_SHARED_LIBS \
-    -DCMAKE_C_FLAGS:STRING="$CMAKE_C_FLAGS" \
-    -DCMAKE_SHARED_LINKER_FLAGS_INIT:STRING="$LINKER_FLAGS" \
-    -DCMAKE_EXE_LINKER_FLAGS_INIT:STRING="$LINKER_FLAGS" \
-    -DCMAKE_C_FLAGS_DEBUG:STRING="$C_FLAGS_DEBUG" $GENERATOR $INSTALL_PREFIX_OPT ..
+silent_run $CMAKE -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On $GENERATOR $INSTALL_PREFIX_OPT ..
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[4/7] Compiling... "
-$CMAKE 2>&3 1>&3 --build . --config $CMAKE_BUILD_TYPE
+silent_run $CMAKE --build . --config Release
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[5/7] Testing... "
-$CTEST 2>&3 1>&3 --output-on-failure -C $CMAKE_BUILD_TYPE
+silent_run $CTEST --output-on-failure -C Release
 [ $? == 0 ] && echo "done." || failed
 
 echo "[6/7] Installing..."
-$DO_CMD $CMAKE --build . --config $CMAKE_BUILD_TYPE --target install
+$DO_CMD $CMAKE --build . --config Release --target install
 [ $? == 0 ] && echo "done." || failed
 
 echo -n "[7/7] Finalizing... "
-run_ldconfig 2>&3 1>&3
+silent_run run_ldconfig
 [ $? == 0 ] && echo "done." || failed
 
 succeeded
