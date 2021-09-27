@@ -1,0 +1,320 @@
+#!/bin/bash
+
+VERSION="2.0.0"
+
+function is_unix
+{
+    case "$(uname -s)" in
+    Linux*) return 0 ;;
+    Darwin*) return 0 ;;
+    *) return 1 ;;
+    esac
+}
+
+# Environment variable setup --------------------------------------------------
+BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS:-On}
+CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX:-}
+DEBUG=${DEBUG:-0}
+
+DEFAULT_DEBUG_CMAKE_C_FLAGS="-fno-omit-frame-pointer -fno-optimize-sibling-calls -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope"
+DEFAULT_DEBUG_C_FLAGS_DEBUG="-g -O0"
+DEFAULT_DEBUG_LINKER_FLAGS="-fsanitize=address -fsanitize=undefined"
+DEFAULT_NDEBUG_CMAKE_C_FLAGS=
+DEFAULT_NDEBUG_C_FLAGS_DEBUG=
+DEFAULT_NDEBUG_LINKER_FLAGS=
+
+if [[ $DEBUG != "0" ]]; then
+    CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Debug}
+    CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-$DEFAULT_DEBUG_CMAKE_C_FLAGS}
+    C_FLAGS_DEBUG=${C_FLAGS_DEBUG:-$DEFAULT_DEBUG_C_FLAGS_DEBUG}
+    LINKER_FLAGS=${LINKER_FLAGS:-$DEFAULT_DEBUG_LINKER_FLAGS}
+
+    # TODO: it should be somewhere else
+    if [ ! -z ${LD_PRELOAD+x} ]; then
+        export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+    fi
+fi
+
+CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE:-Release}
+CMAKE_C_FLAGS=${CMAKE_C_FLAGS:-$DEFAULT_NDEBUG_CMAKE_C_FLAGS}
+C_FLAGS_DEBUG=${C_FLAGS_DEBUG:-$DEFAULT_NDEBUG_C_FLAGS_DEBUG}
+LINKER_FLAGS=${LINKER_FLAGS:-$DEFAULT_NDEBUG_LINKER_FLAGS}
+
+if [ -z ${CMAKE_INSTALL_PREFIX+x} ]; then
+    INSTALL_PREFIX_ARG=
+else
+    INSTALL_PREFIX_ARG="-DCMAKE_INSTALL_PREFIX:STRING=\"$CMAKE_INSTALL_PREFIX\""
+fi
+
+if is_unix; then
+    CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-}
+else
+    ARCH=${ARGH:-x64}
+    CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM:-$ARCH}
+fi
+
+if [ -z ${CMAKE_GENERATOR_PLATFORM+x} ]; then
+    GENERATOR_PLATFORM_ARG=
+else
+    GENERATOR_PLATFORM_ARG="-DCMAKE_GENERATOR_PLATFORM:STRING=$ARCH"
+fi
+# -----------------------------------------------------------------------------
+
+# Argument parsing ------------------------------------------------------------
+function show_error_usage
+{
+    echo "Usage: installv2 GITHUB_USER/GITHUB_PROJECT" >&2
+    echo "Try 'installv2 --help' or 'installv2 --usage' for more information." >&2
+}
+
+function show_usage
+{
+    cat <<HEREDOC
+Usage: installv2 GITHUB_USER/GITHUB_PROJECT
+Install CMake project.
+
+  -q, --quiet                Disable output
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
+  -V, --version              Print program version
+
+Environment variables that change behaviour:
+
+  ARCH
+  BUILD_SHARED_LIBS
+  CMAKE_BUILD_TYPE
+  CMAKE_C_FLAGS
+  CMAKE_GENERATOR_PLATFORM
+  CMAKE_INSTALL_PREFIX
+  C_FLAGS_DEBUG
+  DEBUG
+  INSTALL_PREFIX
+  LINKER_FLAGS
+
+Report bugs to <https://github.com/horta/oneliner.install>.
+HEREDOC
+}
+
+function show_version
+{
+    echo "installv2 $VERSION"
+}
+
+if [ "$#" != "1" ]; then
+    show_error_usage
+    exit 1
+fi
+
+if [[ $1 == "--help" || $1 == "-?" || $1 == "--usage" ]]; then
+    show_usage
+    exit 0
+fi
+
+if [[ $1 == "--version" || $1 == "-V" ]]; then
+    show_version
+    exit 0
+fi
+
+IFS=/ command eval 'read -ra GITHUB_PATH <<< "$1"'
+
+if [[ ${#GITHUB_PATH[@]} != 2 ]]; then
+    echo "Wrong format for github path." >&2
+    show_error_usage
+    exit 1
+fi
+
+GITHUB_USER="${GITHUB_PATH[0]}"
+GITHUB_PROJECT="${GITHUB_PATH[1]}"
+# -----------------------------------------------------------------------------
+
+function error
+{
+    echo "Error: $1" >&2
+}
+
+function abort
+{
+    error "$1"
+    exit 1
+}
+
+function check_project_url_exists
+{
+    local url=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/releases/latest
+    local http_code=$(curl -L -s -o /dev/null -w "%{http_code}" $url)
+    if [ "$http_code" -lt "200" ] || [ "$http_code" -gt "299" ]; then
+        error "page error for <$url>, $http_code"
+        echo >&2
+        echo >&2 "$(curl -L -i $url 2>/dev/null)"
+        exit 1
+    fi
+}
+check_project_url_exists
+
+PRJ_VER=$(curl -L -s $url 2>&1 | grep -oE releases\/tag\/\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
+ORIG_DIR=$(pwd)
+TARFILE=$GITHUB_PROJECT-$PRJ_VER.tar.gz
+TARURL=https://github.com/$GITHUB_USER/$GITHUB_PROJECT/archive/$PRJ_VER.tar.gz
+
+function is_mingw32()
+{
+    if grep -qEi "MINGW32" /proc/version &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+if is_mingw32; then
+    # It avoids warnings about incremental builds inside a temp directory
+    # source: https://github.com/microsoft/LightGBM/pull/3162/files
+    export TMPDIR="$USERPROFILE"
+fi
+
+function is_wsl()
+{
+    if grep -qEi "(Microsoft|WSL)" /proc/version &>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+if is_wsl; then
+    url=https://gitforwindows.org
+    abort "WSL is not supported. Please, open a Git Bash terminal ($url)"
+fi
+
+function mktemp_dir
+{
+    local suffix=$1
+    local dir1
+    local dir2
+
+    dir1=$(mktemp -d --suffix=$suffix 2>&1) && echo -n "$dir1" && return 0
+    dir2=$(mktemp -d -t $suffix 2>&1) && echo -n "$dir2" && return 0
+
+    error "failed to create temporary directory"
+    cat >&2 <<HEREDOC
+
+First attempt:
+
+$dir1
+
+Second attempt:
+
+$dir2
+HEREDOC
+
+    exit 1
+}
+
+WORKDIR=$(mktemp_dir $GITHUB_PROJECT)
+exec 3>"$LOGFILE"
+LOGFILE=$WORKDIR/oneliner.log
+
+function cleanup
+{
+    exec 3>&-
+    rm -rf "$WORKDIR" >/dev/null 2>&1 || true
+    cd "$ORIG_DIR"
+}
+trap cleanup EXIT
+
+function run_ldconfig
+{
+    if type ldconfig; then
+        ldconfig
+    fi
+}
+
+function failed
+{
+    exec 3>&-
+    echo "FAILED."
+    echo
+    echo "---------------------------------------- log begin ----------------------------------------"
+    cat "$LOGFILE"
+    echo "----------------------------------------  log end  ----------------------------------------"
+    echo
+    echo "LOG: $LOGFILE"
+    exit 1
+}
+trap failed INT
+
+function succeeded
+{
+    cleanup
+    rm -rf "$LOGFILE" >/dev/null 2>&1 || true
+}
+
+function cmake_cmd
+{
+    local cmd=""
+    if type 2>&3 1>&3 cmake; then
+        cmd="cmake"
+    elif type 2>&3 1>&3 cmake.exe; then
+        cmd="cmake.exe"
+    else
+        abort "could not find cmake (please, install it: https://cmake.org/download/)"
+    fi
+    echo $cmd
+}
+CMAKE=$(cmake_cmd)
+
+function ctest_cmd
+{
+    local cmd=""
+    if type 2>&3 1>&3 ctest; then
+        cmd="ctest"
+    elif type 2>&3 1>&3 ctest.exe; then
+        cmd="ctest.exe"
+    else
+        abort "could not find ctest"
+    fi
+    echo $cmd
+}
+CTEST=$(ctest_cmd)
+
+echo "[0/7] Library($GITHUB_PROJECT==$PRJ_VER)"
+cd $WORKDIR
+
+echo -n "[1/7] Downloading... "
+curl 2>&3 1>&3 -o $TARFILE -L $TARURL
+[ $? == 0 ] && echo "done." || failed
+
+echo -n "[2/7] Extracting... "
+[ -e $TARFILE ] || failed
+tar 2>&3 1>&3 xzf $TARFILE || failed
+[ -e ${TARFILE%.tar.gz} ] || failed
+cd 2>&3 1>&3 ${TARFILE%.tar.gz} || failed
+mkdir 2>&3 1>&3 build || failed
+cd 2>&3 1>&3 build
+[ $? == 0 ] && echo "done." || failed
+
+echo -n "[3/7] Configuring... "
+$CMAKE 2>&3 1>&3 -DCMAKE_BUILD_TYPE:STRING=$CMAKE_BUILD_TYPE \
+    -DBUILD_SHARED_LIBS:STRING=$BUILD_SHARED_LIBS \
+    -DCMAKE_C_FLAGS:STRING="$CMAKE_C_FLAGS" \
+    -DCMAKE_SHARED_LINKER_FLAGS_INIT:STRING="$LINKER_FLAGS" \
+    -DCMAKE_EXE_LINKER_FLAGS_INIT:STRING="$LINKER_FLAGS" \
+    -DCMAKE_C_FLAGS_DEBUG:STRING="$C_FLAGS_DEBUG" \
+    $GENERATOR_PLATFORM_ARG \
+    $INSTALL_PREFIX_ARG ..
+[ $? == 0 ] && echo "done." || failed
+
+echo -n "[4/7] Compiling... "
+$CMAKE 2>&3 1>&3 --build . --config $CMAKE_BUILD_TYPE
+[ $? == 0 ] && echo "done." || failed
+
+echo -n "[5/7] Testing... "
+$CTEST 2>&3 1>&3 --output-on-failure -C $CMAKE_BUILD_TYPE
+[ $? == 0 ] && echo "done." || failed
+
+echo "[6/7] Installing..."
+$CMAKE --build . --config $CMAKE_BUILD_TYPE --target install
+[ $? == 0 ] && echo "done." || failed
+
+echo -n "[7/7] Finalizing... "
+run_ldconfig 2>&3 1>&3
+[ $? == 0 ] && echo "done." || failed
+
+succeeded
