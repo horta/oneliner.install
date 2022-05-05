@@ -30,5 +30,5 @@ function check_project_url_exists
 }
 check_project_url_exists
 
-PRJ_VER=$(curl -L -s "$URL" 2>&1 | grep -oE releases\/tag\/\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
+PRJ_VER=$(curl -L -s "$URL" 2>&1 | grep -oE releases\/tag\/\[v\]?\[0-9\]+\.\[0-9\]+\.\[0-9\]+ | head -n 1 | grep -oE \[0-9\]+\.\[0-9\]+\.\[0-9\]+)
 echo -n "$PRJ_VER"
